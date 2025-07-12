@@ -1,0 +1,557 @@
+const { Plugin } = require('exteraPlugin');
+const { MessageManager } = require('exteraPlugin');
+
+class BotFilterPlugin extends Plugin {
+    constructor() {
+        super();
+        this.name = 'BotFilter';
+        this.version = '1.0.0';
+        this.description = 'Filtra e encontra bots nos chats do Telegram';
+        this.author = 'Assistant';
+        
+        // Cache para armazenar informações dos bots
+        this.botsCache = new Map();
+        this.isScanning = false;
+        this.scanProgress = 0;
+        this.totalChats = 0;
+    }
+
+    async onLoad() {
+        console.log('BotFilter Plugin carregado!');
+        
+        // Registrar comandos
+        this.registerCommand('/findbots', this.findBots.bind(this));
+        this.registerCommand('/listbots', this.listBots.bind(this));
+        this.registerCommand('/botinfo', this.getBotInfo.bind(this));
+        this.registerCommand('/clearbots', this.clearBotsCache.bind(this));
+        
+        // Adicionar botões na interface
+        this.addUIElements();
+        
+        // Carregar cache salvo
+        await this.loadBotsCache();
+    }
+
+    async onUnload() {
+        console.log('BotFilter Plugin descarregado!');
+        await this.saveBotsCache();
+    }
+
+    addUIElements() {
+        // Adicionar botão na barra lateral
+        const sidebarButton = document.createElement('button');
+        sidebarButton.className = 'bot-filter-btn';
+        sidebarButton.innerHTML = '🤖 Bot Filter';
+        sidebarButton.onclick = () => this.openBotFilterDialog();
+        
+        // Adicionar CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            .bot-filter-btn {
+                background: #2481cc;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                margin: 4px;
+                font-size: 14px;
+                transition: background 0.3s;
+            }
+            .bot-filter-btn:hover {
+                background: #1e6ba8;
+            }
+            .bot-filter-dialog {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                z-index: 10000;
+                width: 500px;
+                max-height: 600px;
+                overflow-y: auto;
+                padding: 20px;
+            }
+            .bot-filter-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 9999;
+            }
+            .bot-list-item {
+                display: flex;
+                align-items: center;
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .bot-list-item:hover {
+                background: #f5f5f5;
+            }
+            .bot-avatar {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                margin-right: 12px;
+                background: #ddd;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .bot-info {
+                flex: 1;
+            }
+            .bot-name {
+                font-weight: bold;
+                margin-bottom: 4px;
+            }
+            .bot-username {
+                color: #666;
+                font-size: 12px;
+            }
+            .bot-status {
+                font-size: 12px;
+                color: #2481cc;
+            }
+            .filter-controls {
+                margin-bottom: 20px;
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            .filter-input {
+                flex: 1;
+                padding: 8px 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+            .filter-btn {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: all 0.3s;
+            }
+            .filter-btn-primary {
+                background: #2481cc;
+                color: white;
+            }
+            .filter-btn-primary:hover {
+                background: #1e6ba8;
+            }
+            .filter-btn-secondary {
+                background: #6c757d;
+                color: white;
+            }
+            .filter-btn-secondary:hover {
+                background: #5a6268;
+            }
+            .scan-progress {
+                width: 100%;
+                height: 8px;
+                background: #eee;
+                border-radius: 4px;
+                overflow: hidden;
+                margin: 10px 0;
+            }
+            .scan-progress-bar {
+                height: 100%;
+                background: #2481cc;
+                transition: width 0.3s;
+            }
+            .scan-status {
+                font-size: 12px;
+                color: #666;
+                margin-bottom: 10px;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Tentar adicionar o botão à interface
+        setTimeout(() => {
+            const sidebar = document.querySelector('.sidebar') || document.querySelector('.left-column');
+            if (sidebar) {
+                sidebar.appendChild(sidebarButton);
+            }
+        }, 1000);
+    }
+
+    openBotFilterDialog() {
+        // Criar overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'bot-filter-overlay';
+        overlay.onclick = () => this.closeBotFilterDialog();
+        
+        // Criar dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'bot-filter-dialog';
+        
+        dialog.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;">🤖 Bot Filter</h3>
+                <button onclick="this.closest('.bot-filter-overlay').remove()" style="background: none; border: none; font-size: 18px; cursor: pointer;">×</button>
+            </div>
+            
+            <div class="filter-controls">
+                <input type="text" id="bot-search" class="filter-input" placeholder="Buscar bots..." onkeyup="window.botFilterPlugin.filterBots(this.value)">
+                <button class="filter-btn filter-btn-primary" onclick="window.botFilterPlugin.scanForBots()">
+                    ${this.isScanning ? 'Escaneando...' : 'Escanear Chats'}
+                </button>
+                <button class="filter-btn filter-btn-secondary" onclick="window.botFilterPlugin.clearBotsCache()">Limpar Cache</button>
+            </div>
+            
+            <div id="scan-progress-container" style="display: ${this.isScanning ? 'block' : 'none'};">
+                <div class="scan-status">Escaneando chats... ${this.scanProgress}/${this.totalChats}</div>
+                <div class="scan-progress">
+                    <div class="scan-progress-bar" style="width: ${this.totalChats > 0 ? (this.scanProgress / this.totalChats) * 100 : 0}%"></div>
+                </div>
+            </div>
+            
+            <div id="bot-list">
+                ${this.renderBotList()}
+            </div>
+        `;
+        
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        // Tornar disponível globalmente para os handlers
+        window.botFilterPlugin = this;
+    }
+
+    closeBotFilterDialog() {
+        const overlay = document.querySelector('.bot-filter-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
+    }
+
+    renderBotList(filter = '') {
+        const filteredBots = Array.from(this.botsCache.values()).filter(bot => {
+            if (!filter) return true;
+            const searchTerm = filter.toLowerCase();
+            return bot.name.toLowerCase().includes(searchTerm) || 
+                   bot.username.toLowerCase().includes(searchTerm) ||
+                   bot.description.toLowerCase().includes(searchTerm);
+        });
+
+        if (filteredBots.length === 0) {
+            return '<div style="text-align: center; color: #666; padding: 40px;">Nenhum bot encontrado. Clique em "Escanear Chats" para buscar bots.</div>';
+        }
+
+        return filteredBots.map(bot => `
+            <div class="bot-list-item" onclick="window.botFilterPlugin.openChat('${bot.id}')">
+                <div class="bot-avatar">
+                    ${bot.avatar ? `<img src="${bot.avatar}" style="width: 100%; height: 100%; border-radius: 50%;">` : '🤖'}
+                </div>
+                <div class="bot-info">
+                    <div class="bot-name">${bot.name}</div>
+                    <div class="bot-username">@${bot.username}</div>
+                    <div class="bot-status">${bot.chatTitle || 'Chat direto'}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    filterBots(searchTerm) {
+        const botList = document.getElementById('bot-list');
+        if (botList) {
+            botList.innerHTML = this.renderBotList(searchTerm);
+        }
+    }
+
+    async scanForBots() {
+        if (this.isScanning) return;
+        
+        this.isScanning = true;
+        this.scanProgress = 0;
+        this.updateScanProgress();
+        
+        try {
+            // Obter lista de chats
+            const chats = await this.getChats();
+            this.totalChats = chats.length;
+            
+            for (let i = 0; i < chats.length; i++) {
+                const chat = chats[i];
+                this.scanProgress = i + 1;
+                this.updateScanProgress();
+                
+                // Verificar se o chat contém bots
+                await this.scanChatForBots(chat);
+                
+                // Pequena pausa para não sobrecarregar
+                await this.sleep(100);
+            }
+            
+            await this.saveBotsCache();
+            this.updateBotList();
+            
+        } catch (error) {
+            console.error('Erro ao escanear bots:', error);
+            this.showNotification('Erro ao escanear bots: ' + error.message, 'error');
+        } finally {
+            this.isScanning = false;
+            this.updateScanProgress();
+        }
+    }
+
+    async scanChatForBots(chat) {
+        try {
+            // Obter membros do chat
+            const members = await this.getChatMembers(chat.id);
+            
+            for (const member of members) {
+                if (this.isBot(member)) {
+                    const botInfo = {
+                        id: member.id,
+                        name: member.first_name || member.title || 'Bot',
+                        username: member.username || '',
+                        description: member.description || '',
+                        avatar: member.avatar || null,
+                        chatId: chat.id,
+                        chatTitle: chat.title || 'Chat privado',
+                        lastSeen: new Date().toISOString(),
+                        isActive: member.is_active || false
+                    };
+                    
+                    this.botsCache.set(member.id, botInfo);
+                }
+            }
+            
+        } catch (error) {
+            console.error(`Erro ao escanear chat ${chat.id}:`, error);
+        }
+    }
+
+    isBot(user) {
+        return user.is_bot || 
+               user.username?.toLowerCase().includes('bot') ||
+               user.first_name?.toLowerCase().includes('bot') ||
+               user.type === 'bot';
+    }
+
+    updateScanProgress() {
+        const progressContainer = document.getElementById('scan-progress-container');
+        if (progressContainer) {
+            progressContainer.style.display = this.isScanning ? 'block' : 'none';
+            
+            const statusEl = progressContainer.querySelector('.scan-status');
+            const progressBar = progressContainer.querySelector('.scan-progress-bar');
+            
+            if (statusEl) {
+                statusEl.textContent = this.isScanning ? 
+                    `Escaneando chats... ${this.scanProgress}/${this.totalChats}` : 
+                    'Escaneamento concluído';
+            }
+            
+            if (progressBar) {
+                const percentage = this.totalChats > 0 ? (this.scanProgress / this.totalChats) * 100 : 0;
+                progressBar.style.width = `${percentage}%`;
+            }
+        }
+    }
+
+    updateBotList() {
+        const botList = document.getElementById('bot-list');
+        if (botList) {
+            botList.innerHTML = this.renderBotList();
+        }
+    }
+
+    async openChat(botId) {
+        try {
+            // Abrir chat com o bot
+            await this.openChatById(botId);
+            this.closeBotFilterDialog();
+        } catch (error) {
+            console.error('Erro ao abrir chat:', error);
+            this.showNotification('Erro ao abrir chat com o bot', 'error');
+        }
+    }
+
+    // Comandos de texto
+    async findBots(message) {
+        const args = message.text.split(' ').slice(1);
+        const searchTerm = args.join(' ');
+        
+        if (!searchTerm) {
+            return this.sendMessage(message.chat.id, 
+                '🤖 *Bot Filter*\n\n' +
+                'Use: `/findbots <termo de busca>`\n\n' +
+                'Exemplo: `/findbots music`', 
+                { parse_mode: 'Markdown' }
+            );
+        }
+        
+        const filteredBots = Array.from(this.botsCache.values()).filter(bot => {
+            const term = searchTerm.toLowerCase();
+            return bot.name.toLowerCase().includes(term) || 
+                   bot.username.toLowerCase().includes(term) ||
+                   bot.description.toLowerCase().includes(term);
+        });
+        
+        if (filteredBots.length === 0) {
+            return this.sendMessage(message.chat.id, 
+                '❌ Nenhum bot encontrado com o termo "' + searchTerm + '"'
+            );
+        }
+        
+        const botList = filteredBots.slice(0, 10).map((bot, index) => 
+            `${index + 1}. *${bot.name}* (@${bot.username})\n   📍 ${bot.chatTitle}`
+        ).join('\n\n');
+        
+        this.sendMessage(message.chat.id, 
+            `🤖 *Bots encontrados (${filteredBots.length}):*\n\n${botList}`,
+            { parse_mode: 'Markdown' }
+        );
+    }
+
+    async listBots(message) {
+        const totalBots = this.botsCache.size;
+        
+        if (totalBots === 0) {
+            return this.sendMessage(message.chat.id, 
+                '❌ Nenhum bot encontrado. Use `/findbots` para escanear seus chats.'
+            );
+        }
+        
+        const recentBots = Array.from(this.botsCache.values())
+            .sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen))
+            .slice(0, 10);
+        
+        const botList = recentBots.map((bot, index) => 
+            `${index + 1}. *${bot.name}* (@${bot.username})\n   📍 ${bot.chatTitle}`
+        ).join('\n\n');
+        
+        this.sendMessage(message.chat.id, 
+            `🤖 *Seus bots (${totalBots} total):*\n\n${botList}`,
+            { parse_mode: 'Markdown' }
+        );
+    }
+
+    async getBotInfo(message) {
+        const args = message.text.split(' ').slice(1);
+        const botUsername = args[0];
+        
+        if (!botUsername) {
+            return this.sendMessage(message.chat.id, 
+                'Use: `/botinfo <username>`\n\nExemplo: `/botinfo weatherbot`'
+            );
+        }
+        
+        const bot = Array.from(this.botsCache.values()).find(b => 
+            b.username.toLowerCase() === botUsername.toLowerCase().replace('@', '')
+        );
+        
+        if (!bot) {
+            return this.sendMessage(message.chat.id, 
+                '❌ Bot não encontrado: @' + botUsername
+            );
+        }
+        
+        const info = 
+            `🤖 *${bot.name}*\n\n` +
+            `👤 Username: @${bot.username}\n` +
+            `📍 Chat: ${bot.chatTitle}\n` +
+            `🕒 Último visto: ${new Date(bot.lastSeen).toLocaleString()}\n` +
+            `${bot.description ? `📝 Descrição: ${bot.description}\n` : ''}` +
+            `${bot.isActive ? '✅ Ativo' : '⚪ Inativo'}`;
+        
+        this.sendMessage(message.chat.id, info, { parse_mode: 'Markdown' });
+    }
+
+    async clearBotsCache(message) {
+        this.botsCache.clear();
+        await this.saveBotsCache();
+        
+        if (message) {
+            this.sendMessage(message.chat.id, '✅ Cache de bots limpo com sucesso!');
+        } else {
+            this.showNotification('Cache de bots limpo!', 'success');
+        }
+        
+        this.updateBotList();
+    }
+
+    // Métodos auxiliares
+    async getChats() {
+        // Implementar usando a API do Telegram
+        // Esta é uma implementação simplificada
+        try {
+            const chats = await this.telegramAPI.getChats();
+            return chats || [];
+        } catch (error) {
+            console.error('Erro ao obter chats:', error);
+            return [];
+        }
+    }
+
+    async getChatMembers(chatId) {
+        try {
+            const members = await this.telegramAPI.getChatMembers(chatId);
+            return members || [];
+        } catch (error) {
+            console.error('Erro ao obter membros do chat:', error);
+            return [];
+        }
+    }
+
+    async openChatById(chatId) {
+        try {
+            await this.telegramAPI.openChat(chatId);
+        } catch (error) {
+            console.error('Erro ao abrir chat:', error);
+            throw error;
+        }
+    }
+
+    async sendMessage(chatId, text, options = {}) {
+        try {
+            await this.telegramAPI.sendMessage(chatId, text, options);
+        } catch (error) {
+            console.error('Erro ao enviar mensagem:', error);
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        // Implementar notificação na interface
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    async loadBotsCache() {
+        try {
+            const saved = await this.storage.get('botsCache');
+            if (saved) {
+                this.botsCache = new Map(JSON.parse(saved));
+            }
+        } catch (error) {
+            console.error('Erro ao carregar cache:', error);
+        }
+    }
+
+    async saveBotsCache() {
+        try {
+            const data = JSON.stringify(Array.from(this.botsCache.entries()));
+            await this.storage.set('botsCache', data);
+        } catch (error) {
+            console.error('Erro ao salvar cache:', error);
+        }
+    }
+
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+}
+
+// Exportar o plugin
+module.exports = BotFilterPlugin;
