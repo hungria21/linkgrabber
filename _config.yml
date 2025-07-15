@@ -2,7 +2,7 @@
 title: Minimalist Dark Blog
 description: "A simple, minimalist, and dark blog template for GitHub Pages."
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
-baseurl: "/minimalist-dark-blog" # the subpath of your site, e.g. /blog
+baseurl: "/linkgrabber" # the subpath of your site, e.g. /blog
 
 # Build settings
 markdown: kramdown
