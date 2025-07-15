@@ -1,0 +1,11 @@
+# Site settings
+title: Minimalist Dark Blog
+description: "A simple, minimalist, and dark blog template for GitHub Pages."
+url: "" # the base hostname & protocol for your site, e.g. http://example.com
+baseurl: "" # the subpath of your site, e.g. /blog
+
+# Build settings
+markdown: kramdown
+theme: minima
+plugins:
+  - jekyll-feed
