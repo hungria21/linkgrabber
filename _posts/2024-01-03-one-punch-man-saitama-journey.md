@@ -5,7 +5,7 @@ date:   2024-01-03 14:30:00 -0300
 categories: [anime, análise, comédia]  
 ---  
 
-![Saitama olhando para o céu](https://imgur.com/gallery/onepunchman-ok-izcL7MI#KVhulje)  
+![Saitama olhando para o céu](https://i.imgur.com/HjCgXRW.gif)  
 
 **One Punch Man** não é apenas um anime sobre um herói calvo que derrota inimigos com um único soco. É uma sátira brilhante aos shonens tradicionais, uma reflexão sobre a busca por propósito e, claro, uma fonte inesgotável de cenas hilárias.  
 
