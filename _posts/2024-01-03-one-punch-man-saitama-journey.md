@@ -3,6 +3,7 @@ layout: post
 title:  "One Punch Man: A Jornada de Saitama Rumo ao Tédio e ao Poder Absoluto"  
 date:   2024-01-03 14:30:00 -0300  
 categories: [anime, análise, comédia]  
+excerpt: "One Punch Man vai além de um herói invencível: é uma sátira genial sobre poder, propósito e o vazio do tédio. Descubra por que Saitama é o anti-herói mais cativante dos animes."  
 ---  
 
 ![Saitama olhando para o céu](https://i.imgur.com/HjCgXRW.gif)  
