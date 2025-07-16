@@ -7,7 +7,7 @@ categories: [anime, análise, comédia]
 
 ![Saitama olhando para o céu](https://i.imgur.com/HjCgXRW.gif)  
 
-**One Punch Man** não é apenas um anime sobre um herói calvo que derrota inimigos com um único soco. É uma sátira brilhante aos shonens tradicionais, uma reflexão sobre a busca por propósito e, claro, uma fonte inesgotável de cenas hilárias.  
+**One Punch Man** não é apenas um anime sobre um herói calvo que derrota inimigos com um único soco. É uma sátira brilhante aos shonens tradicionais, uma reflexão sobre a busca por propósito e, claro, uma fonte inesgotável de cenas hilárias. <!--more-->
 
 ### O Paradoxo de Saitama  
 Saitama, o protagonista, alcançou um poder tão absurdo que nenhum oponente consegue desafiar seriamente. O resultado? Um herói entediado, que anseia por uma luta emocionante. Sua jornada questiona: *"O que vem depois do poder absoluto?"*  
