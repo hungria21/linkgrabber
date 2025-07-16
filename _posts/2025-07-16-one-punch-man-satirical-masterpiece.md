@@ -3,7 +3,6 @@ layout: post
 title: "One Punch Man: A Satirical Masterpiece"
 date:   2025-07-16 14:30:00 -0300
 categories: [anime, review]
-author: "SeuNome"
 ---
 
 ![Capa One Punch Man](https://i.imgur.com/OPM_thumbnail.jpg)  
